@@ -178,15 +178,60 @@ int show_all_records(const CMSdb* db) {
 /*
 * Insert a new record - PLACEHOLDER
 */
-	int insert_record(CMSdb* db) {
-		if (!db->is_open) {
-			printf("CMS: No database is currently opened.\n");
+int insert_record(CMSdb* db) {
+	if (!db->is_open) {
+		printf("CMS: No database is currently opened.\n");
+		return 0;
+	}
+
+	if (db->record_count >= MAX_RECORDS) {
+		printf("CMS: Database is full. Cannot insert more records.\n");
+		return 0;
+	}
+
+	char buffer[100];
+	int newID;
+
+	// ---- Get Student ID ----
+	printf("Enter Student ID: ");
+	if (fgets(buffer, sizeof(buffer), stdin) == NULL) {
+		printf("Input error.\n");
+		return 0;
+	}
+	newID = atoi(buffer); // convert string to int
+
+	if (newID == 0 && buffer[0] != '0') { // invalid number
+		printf("Invalid input. Please enter a valid integer ID.\n");
+		return 0;
+	}
+
+	// Check if ID already exists
+	for (int i = 0; i < db->record_count; i++) {
+		if (db->records[i].id == newID) {
+			printf("Error: Student ID already exists. Insertion cancelled.\n");
 			return 0;
 		}
-		printf("CMS: Insert record function - TO BE IMPLEMENTED\n");
-		printf("CMS: Would add new student record here\n");
-		return 1;
 	}
+
+	// Add new record
+	StudentRecord* record = &db->records[db->record_count];
+	record->id = newID;
+
+	get_string_input(record->name, sizeof(record->name), "Enter Student Name: ");
+	get_string_input(record->programme, sizeof(record->programme), "Enter Programme: ");
+
+	// ---- Get Mark ----
+	printf("Enter Mark: ");
+	if (fgets(buffer, sizeof(buffer), stdin) == NULL) {
+		printf("Input error.\n");
+		return 0;
+	}
+	record->mark = atof(buffer); // convert string to float
+
+	db->record_count++;
+	printf("CMS: Student record inserted successfully.\n");
+	return 1;
+}
 	/*
 	* Query/search records - PLACEHOLDER
 	*/
