@@ -19,7 +19,9 @@
 #define MAX_PROGRAMME_LENGTH 40 //max char for programme names
 #define MAX_RECORDS 1000 //max no. of entries in the CMS
 #define MAX_FILENAME_LENGTH 100 //max char for filename
-#define MAX_ID_LENGTH 10 
+#define MAX_ID_LENGTH 7
+#define QUERY_CHOICES_MAX 5
+#define QUERY_CHOICES_MIN 1
 /*Display Constant Var*/
 #define DISPLAY_ID_WIDTH 10
 #define DISPLAY_NAME_WIDTH 40
@@ -55,12 +57,17 @@ int handle_menu_choice(int choice, CMSdb *db);
 int get_valid_menu_choice(void);
 void clear_input_buffer(void);
 void get_string_input(char *buffer, int size, const char* prompt);
+int get_valid_student_id(void);
 
 //Core functions (called by menu handler)
 int open_file(CMSdb *db); 
 int show_all_records(const CMSdb *db);
 int insert_record(CMSdb *db);
 int query_record(const CMSdb *db);
+void query_by_id(const CMSdb *db);
+void query_by_name(const CMSdb *db);
+void query_by_programme(const CMSdb* db);
+void query_by_mark(const CMSdb* db);
 int update_record(CMSdb *db);
 int delete_record(CMSdb *db);
 int save_file(const CMSdb *db);
