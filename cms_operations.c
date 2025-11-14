@@ -1,3 +1,4 @@
+#define _CRT_SECURE_NO_WARNINGS
 /*
 * Course Management System (CMS)
 * Implementation file - code for all CMS functions
@@ -91,6 +92,21 @@ void initialize_db(CMSdb* db) {
 	db->is_open = 0;				//database is not opened yet
 	strcpy_s(db->current_filename, sizeof(db->current_filename), "Sample-CMS"); //No current file
 }
+/*
+* Undo File
+*/
+void save_undo_state(CMSdb* db, const char* operation)
+{
+	// Copy all records to backup_record array (not a single struct)
+	for (int i = 0; i < db->record_count; i++)
+	{
+		db->undo.backup_record[i] = db->records[i];
+
+	}
+	db->undo.backup_count = db->record_count;
+	db->undo.can_undo = 1;
+	strcpy_s(db->undo.last_operation, sizeof(db->undo.last_operation), operation);
+}
 
 /*
 * Display the main menu to user
@@ -105,7 +121,8 @@ void show_menu(void) {
 	printf("5. Update Record\n");
 	printf("6. Delete Record\n");
 	printf("7. Save File\n");
-	printf("8. Exit\n");
+	printf("8. Undo\n");
+	printf("9. Exit\n");
 }
 
 /*
@@ -127,7 +144,9 @@ int handle_menu_choice(int choice, CMSdb* db) {
 		return delete_record(db);
 	case 7: // Save File
 		return save_file(db);
-	case 8: // Exit
+	case 8:
+		return undo_last_operation(db);
+	case 9: // Exit
 		printf("Exiting CMS\n");
 		return -1; // Special return value to exit program
 
@@ -232,18 +251,162 @@ int show_all_records(const CMSdb* db) {
 	return 1;
 }
 /*
-* Insert a new record - PLACEHOLDER
+* Insert a new record
 */
-	int insert_record(CMSdb* db) {
-		if (!db->is_open) {
-			printf("CMS: No database is currently opened.\n");
-			return 0;
-		}
-		printf("CMS: Insert record function - TO BE IMPLEMENTED\n");
-		printf("CMS: Would add new student record here\n");
-		return 1;
+int insert_record(CMSdb* db) {
+	if (!db->is_open) {
+		printf("CMS: No database is currently opened.\n");
+		return 0;
 	}
 
+	if (db->record_count >= MAX_RECORDS) {
+		printf("CMS: Database is full. Cannot insert more records.\n");
+		return 0;
+	}
+
+	char buffer[100];
+	int newID;
+	StudentRecord* record = &db->records[db->record_count];
+
+	//Get Student ID
+	while (1) {
+		printf("Enter Student ID: ");
+		if (fgets(buffer, sizeof(buffer), stdin) == NULL) {
+			printf("Input error. Try again.\n");
+			continue;
+		}
+		// remove newline
+		buffer[strcspn(buffer, "\n")] = 0;
+
+		if (strlen(buffer) != MAX_ID_LENGTH) {
+			printf("Error: ID must be %d characters.\n", MAX_ID_LENGTH);
+			continue;
+		}
+
+		newID = atoi(buffer);
+		if (newID == 0 && buffer[0] != '0') {
+			printf("Invalid input. Please enter a valid integer ID.\n");
+			continue;
+		}
+
+		int exists = 0;
+		for (int i = 0; i < db->record_count; i++) {
+			if (db->records[i].id == newID) {
+				printf("Error: Student ID already exists.\n");
+				exists = 1;
+				break;
+			}
+		}
+		if (exists) continue;
+
+		record->id = newID;
+		break;
+	}
+
+	//Gwt Student Name
+	while (1) {
+		get_string_input(record->name, sizeof(record->name), "Enter Student Name: ");
+		if (strlen(record->name) > MAX_NAME_LENGTH) {
+			printf("Error: Name cannot exceed %d characters.\n", MAX_NAME_LENGTH);
+			continue;
+		}
+		int has_digit = 0;
+		for (int i = 0; i < strlen(record->name); i++) {
+			if (isdigit((unsigned char)record->name[i])) {
+				has_digit = 1;
+				break;
+			}
+		}
+		if (has_digit) {
+			printf("Error: Name cannot contain digits.\n");
+			continue;
+		}
+		break;
+	}
+
+	// ---- Get Programme ----
+	while (1) {
+		get_string_input(record->programme, sizeof(record->programme), "Enter Programme: ");
+		if (strlen(record->programme) > MAX_PROGRAMME_LENGTH) {
+			printf("Error: Programme cannot exceed %d characters.\n", MAX_PROGRAMME_LENGTH);
+			continue;
+		}
+		int has_digit = 0;
+		for (int i = 0; i < strlen(record->programme); i++) {
+			if (isdigit((unsigned char)record->programme[i])) {
+				has_digit = 1;
+				break;
+			}
+		}
+		if (has_digit) {
+			printf("Error: Programme cannot contain digits.\n");
+			continue;
+		}
+		break;
+	}
+
+	//Get Student Mark
+	while (1) {
+		printf("Enter Mark (one decimal place, e.g., 0.1, 99.9): ");
+		if (fgets(buffer, sizeof(buffer), stdin) == NULL) {
+			printf("Input error. Try again.\n");
+			continue;
+		}
+
+		// remove newline
+		buffer[strcspn(buffer, "\n")] = 0;
+
+		int len = strlen(buffer);
+		int dot_pos = -1;
+
+		// Find position of decimal point
+		for (int i = 0; i < len; i++) {
+			if (buffer[i] == '.') {
+				dot_pos = i;
+				break;
+			}
+		}
+
+		// Validate format
+		if (dot_pos <= 0 || dot_pos != len - 2) {
+			// dot must exist, not first character, exactly one digit after dot
+			printf("Error: Mark must have exactly one decimal place and a leading zero if < 1.\n");
+			continue;
+		}
+
+		// Check leading zero if number < 1
+		if (dot_pos == 1 && buffer[0] != '0') {
+			printf("Error: Numbers less than 1 must have a leading zero (e.g., 0.1).\n");
+			continue;
+		}
+
+		// Check all characters except dot are digits
+		int valid = 1;
+		for (int i = 0; i < len; i++) {
+			if (i == dot_pos) continue;
+			if (!isdigit((unsigned char)buffer[i])) {
+				valid = 0;
+				break;
+			}
+		}
+		if (!valid) {
+			printf("Error: Mark must be numeric with one decimal.\n");
+			continue;
+		}
+
+		// Convert to double
+		double mark = atof(buffer);
+		if (mark < 0 || mark > 100) {
+			printf("Error: Mark must be between 0 and 100.\n");
+			continue;
+		}
+
+		record->mark = mark;
+		printf("Record added successfully!\n");
+		break;
+	}
+	db->record_count++;
+}
 	//Query a Record
 
 	int query_record(const CMSdb* db) { 
@@ -552,30 +715,210 @@ int show_all_records(const CMSdb* db) {
 
 
 /*
-* Update existing record - PLACEHOLDER
+* Update existing record
 */
 	int update_record(CMSdb* db) {
 		if (!db->is_open) {
 			printf("CMS: No database is currently opened.\n");
 			return 0;
 		}
-		printf("CMS: Update record function - TO BE IMPLEMENTED\n");
-		printf("CMS: Would update student record here\n");
+		if (db->record_count == 0) {
+			printf("CMS: No records available to update.\n");
+			return 0;
+		}
+		//update student ID
+		int studentID;
+		printf("Enter student ID to update:\n");
+		if (scanf_s("%d", &studentID) != 1) {
+			printf("CMS: Invalid ID.\n");
+			clear_input_buffer();
+			return 0;
+		}
+
+		int recordsindex = -1; //check whether the student ID already exist
+		for (int i = 0; i < db->record_count; i++) {
+			if (db->records[i].id == studentID) {
+				recordsindex = i;
+				break;
+			}
+		}
+		// if no record is found with the student id provided
+		if (recordsindex == -1) {
+			printf("CMS: The record with ID = %d does not exist.\n", studentID);
+			clear_input_buffer();
+			return 0;
+		}
+
+		StudentRecord* record = &db->records[recordsindex];
+
+		//current record
+		printf("\nCurrent record details:\n");
+		printf("Student ID: %d\n", record->id);
+		printf("Name: %s\n", record->name);
+		printf("Programme: %s\n", record->programme);
+		printf("Mark: %.1f\n\n", record->mark);
+
+		//select which area to update
+		int choices;
+		printf("Select field to update:\n");
+		printf("1. Update Name\n");
+		printf("2. Update Programme\n");
+		printf("3. Update Mark\n");
+		printf("Please enter your choice (1-3): ");
+
+		if (scanf_s("%d", &choices) != 1) {
+			printf("CMS: Invalid choice format.\n");
+			clear_input_buffer();
+			return 0;
+		}
+		clear_input_buffer();
+
+		//update the choices
+		switch (choices) {
+		case 1: //update name
+		{
+			char updatedname[MAX_NAME_LENGTH];
+			get_string_input(updatedname, sizeof(updatedname), "Enter updated name: ");
+
+			strcpy_s(record->name, sizeof(record->name), updatedname);
+			printf("CMS: The record with ID = %d is successfully updated.\n", studentID);
+		} break;
+
+		case 2: //update programme
+		{
+			char updatedprog[MAX_PROGRAMME_LENGTH];
+			get_string_input(updatedprog, sizeof(updatedprog), "Enter updated programme: ");
+
+			strcpy_s(record->programme, sizeof(record->programme), updatedprog);
+			printf("CMS: The record with ID = %d is successfully updated.\n", studentID);
+		} break;
+
+		case 3: // update mark
+		{
+			float updatedmarks;
+			int validmark = 0;
+			while (!validmark) {
+				printf("Enter updated mark: ");
+				if (scanf_s("%f", &updatedmarks) != 1) {
+					printf("CMS: Invalid mark. Please enter the updated mark:\n");
+					clear_input_buffer();
+				}
+				else {
+					clear_input_buffer();
+
+					if (updatedmarks < 0 || updatedmarks > 100) {
+						printf("CMS: Invalid mark. Please enter the updated mark:\n");
+					}
+					else {
+						validmark = 1;
+					}
+					record->mark = updatedmarks;
+					printf("\nCMS: The record with ID = %d is successfully updated.\n", studentID);
+				}
+			} break;
+		}
+		}
+
+		//display updated record
+		printf("\nUpdated record:\n");
+		printf("Student ID: %d\n", record->id);
+		printf("Name: %s\n", record->name);
+		printf("Programme: %s\n", record->programme);
+		printf("Mark: %.1f\n", record->mark);
+
 		return 1;
 	}
 /*
-* Delete record - PLACEHOLDER
+* Delete record
 */
-	int delete_record(CMSdb * db) {
+	int delete_record(CMSdb* db) {
 		if (!db->is_open) {
 			printf("CMS: No database is currently opened.\n");
 			return 0;
 		}
-		printf("CMS: Delete record function - TO BE IMPLEMENTED\n");
-		return 1;
+
+		// Save current state for undo functionality before deleting 
+		save_undo_state(db, "DELETE");
+
+		// Prompt user for Student ID to delete
+		int id_to_delete;
+		printf("CMS: Enter Student ID to delete: ");
+
+		// We will read the ID from user 
+		if (scanf("%d", &id_to_delete) != 1) {
+			printf("CMS: Invalid ID format.\n");
+			clear_input_buffer();  // Clear any invalid input
+			db->undo.can_undo = 0; // Cancel undo since no deletion occurred
+			return 0;
+		}
+		clear_input_buffer();  // Clear the input buffer after reading
+
+		// Search for the record with the given ID
+		int found_index = -1;  // -1 means "not found"
+
+		// We will loop through all records to find matching ID
+		for (int i = 0; i < db->record_count; i++) {
+			if (db->records[i].id == id_to_delete) {
+				found_index = i;  // Record found at index i
+				break;  // Exit loop since we found the record
+			}
+		}
+
+		//Check if record was found
+		if (found_index == -1) {
+			// If record not found
+			printf("CMS: The record with ID=%d does not exist.\n", id_to_delete);
+			db->undo.can_undo = 0; // Cancel undo since no deletion occurred 
+			return 0;
+
+		}
+
+		//If record found, display details and ask for confirmation
+		printf("CMS: Found student: %s (ID: %d)\n",
+			db->records[found_index].name, //display name and ID of record to be deleted
+			id_to_delete);
+		printf("Are you sure you want to delete this record? (Y/N): ");
+
+
+		// Get users confirmation
+		char confirmation;
+		scanf(" %c", &confirmation);  // Space before %c skips whitespace
+		clear_input_buffer();
+
+		//Check if user confirmed deletion
+		if (confirmation == 'N' || confirmation == 'n') { //If user selects "N" / "n" then the deletion is cancelled
+			printf("CMS: The deletion is cancelled.\n");
+			db->undo.can_undo = 0; // Cancel undo since no deletion occurred
+			return 0;
+		}
+
+		//Check if user input other things that are not Y/y or N/n then print out invalid input message
+		if (confirmation != 'Y' && confirmation != 'y') {
+			printf("CMS: Invalid input. The deletion is cancelled.\n");
+			db->undo.can_undo = 0; // Cancel undo since no deletion occurred
+			return 0;
+		}
+
+		//If user confirmed deletion, proceed to delete the record
+		//How we delete the record is by shifting all records after found_index one position to the left
+		//Example: If we delete record at index 2, we copy record at index 3 to index 2, index 4 to index 3, etc.
+
+		for (int i = found_index; i < db->record_count - 1; i++) {
+			// Copy the next record to current position
+			db->records[i] = db->records[i + 1];
+		}
+
+		// Decrease the record count
+		db->record_count--;
+
+		// Notify user of successful deletion
+		printf("CMS: The record with ID=%d is successfully deleted.\n", id_to_delete);
+		printf("CMS: You can undo this deletion using the 'Option 8' option.\n");
+
+		return 1;  //The deletion was successful
 	}
 /*
-* Save file - PLACEHOLDER
+* Save file
 */
 	int save_file(const CMSdb* db) {
 		if (!db->is_open) {
@@ -584,5 +927,34 @@ int show_all_records(const CMSdb* db) {
 		}
 		printf("CMS: Save file function - TO BE IMPLEMENTED\n");
 		printf("CMS: Would save %d records to file\n", db->record_count);
+		return 1;
+	}
+/*
+* Undo Function
+*/
+	int undo_last_operation(CMSdb* db) {
+		if (!db->is_open) {
+			printf("CMS: No database is currently opened.\n");
+			return 0;
+		}
+
+		if (!db->undo.can_undo) { // No undo available
+			printf("CMS: Nothing to undo. No delete operation has been performed yet.\n");
+			return 0;
+		}
+
+		printf("CMS: Undoing last operation: %s\n", db->undo.last_operation); // Display last operation
+
+		for (int i = 0; i < db->undo.backup_count; i++) { // Restore records from backup
+			db->records[i] = db->undo.backup_record[i]; // Copy each record back
+		}
+
+		db->record_count = db->undo.backup_count; // Restore record count
+		db->undo.can_undo = 0; // Disable further undo until next delete
+		strcpy_s(db->undo.last_operation, sizeof(db->undo.last_operation), ""); // Clear last operation description
+
+		printf("CMS: Undo successful! Database restored to previous state.\n"); // Notify user that the undo was successful
+		printf("CMS: Current record count: %d\n", db->record_count); // Show current record count
+
 		return 1;
 	}

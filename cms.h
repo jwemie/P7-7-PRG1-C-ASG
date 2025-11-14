@@ -40,10 +40,18 @@ typedef struct {
 } StudentRecord;
 
 typedef struct {
+	StudentRecord backup_record[MAX_RECORDS]; // Backup of the last deleted record
+	int backup_count; // Number of records in backup
+	int can_undo; // Flag: 1 if undo available, 0 if undo not available
+	char last_operation[50]; // Description of last operation (e.g., "DELETE")
+} UndoInfo;
+
+typedef struct {
 	StudentRecord records[MAX_RECORDS]; //array of student records
 	int record_count; // no. of records in db
 	int is_open; //flag: 0  = closed , 1 = open
 	char current_filename[100]; //name of the currently opened file
+	UndoInfo undo; //undo function
 } CMSdb;
 
 //Function Declaration
@@ -71,6 +79,7 @@ void query_by_mark(const CMSdb* db);
 int update_record(CMSdb *db);
 int delete_record(CMSdb *db);
 int save_file(const CMSdb *db);
-
+void save_undo_state(CMSdb* db, const char* operation);
+int undo_last_operation(CMSdb* db);
 #endif
 
