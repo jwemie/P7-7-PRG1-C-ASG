@@ -116,13 +116,14 @@ void show_menu(void) {
 	printf("\n=== Course Management System Menu ===\n");
 	printf("1. Open File\n");
 	printf("2. Show All Records\n");
-	printf("3. Insert Record\n");
-	printf("4. Query Record\n");
-	printf("5. Update Record\n");
-	printf("6. Delete Record\n");
-	printf("7. Save File\n");
-	printf("8. Undo\n");
-	printf("9. Exit\n");
+	printf("3. Sort Records\n");
+	printf("4. Insert Record\n");
+	printf("5. Query Record\n");
+	printf("6. Update Record\n");
+	printf("7. Delete Record\n");
+	printf("8. Save File\n");
+	printf("9. Undo\n");
+	printf("10. Exit\n");
 }
 
 /*
@@ -134,19 +135,21 @@ int handle_menu_choice(int choice, CMSdb* db) {
 		return open_file(db);
 	case 2: //Show all records
 		return show_all_records(db);
-	case 3: // Insert new record
+	case 3: //sorting function
+		return sort_records(db);
+	case 4: // Insert new record
 		return insert_record(db);
-	case 4: // Query records
+	case 5: // Query records
 		return query_record(db);
-	case 5: // Update record
+	case 6: // Update record
 		return update_record(db);
-	case 6: // Delete Record
+	case 7: // Delete Record
 		return delete_record(db);
-	case 7: // Save File
-		return save_file(db);
-	case 8:
+	case 8: // Undo Functions on records
 		return undo_last_operation(db);
-	case 9: // Exit
+	case 9: // Save File
+		return save_file(db);
+	case 10: // Exitx
 		printf("Exiting CMS\n");
 		return -1; // Special return value to exit program
 
@@ -990,3 +993,130 @@ int insert_record(CMSdb* db) {
 
 		return 1;
 	}
+/*
+* Sort records by different criteria
+*/
+	int sort_records(CMSdb* db)
+	{
+		if (!db->is_open)
+		{
+			printf("CMS: No database is currently opened.\n");
+			return 0;
+		}
+
+		if (db->record_count == 0)
+		{
+			printf("CMS: No records available to sort.\n");
+			return 0;
+		}
+
+		while (1)
+		{
+			printf("\n=== Sort Records ===\n");
+			printf("1. Sort by ID (Ascending A-Z)\n");
+			printf("2. Sort by ID (Descending Z-A)\n");
+			printf("3. Sort by Mark (Ascending 0.0 - 100.0)\n");
+			printf("4. Sort by Mark (Descending 100.0 - 0.0\n");
+			printf("5. Return to Main Menu\n");
+
+			char sort_choice_input[4];
+			get_string_input(sort_choice_input, sizeof(sort_choice_input), "Enter your choice (1-5): ");
+
+			//input validation
+			if (strlen(sort_choice_input) != 1 || !isdigit(sort_choice_input[0]))
+			{
+				printf("Invalid Input. Please enter exactly one number from %d-%d.\n", SORT_CHOICES_MIN, SORT_CHOICES_MAX);
+				continue;
+			}
+			int sort_choice = sort_choice_input[0] - '0';
+			if (sort_choice < SORT_CHOICES_MIN || sort_choice > SORT_CHOICES_MAX)
+			{
+				printf("Invalid Choice. Enter a number between %d-%d.\n", SORT_CHOICES_MIN, SORT_CHOICES_MAX);
+				continue;
+			}
+
+			switch (sort_choice)
+			{
+				case 1:
+					sort_by_id_asc(db);
+					break;
+				case 2:
+					sort_by_id_desc(db);
+					break;
+				case 3:
+					sort_by_mark_asc(db);
+					break;
+				case 4:
+					sort_by_mark_desc(db);
+					break;
+				case 5:
+					printf("Returning to Main Menu.\n");
+					return 1;
+			}
+			printf("\nRecords sorted Successfully.\n");
+			show_all_records(db);
+			break;
+		}
+		return 1;
+	}
+	//comparison functions for qsort
+	int compare_id_asc(const void* a, const void* b)
+	{
+		//if record A id smaller than record B, return negative, A comes before B
+		//if record B is larger than A, return positive, A comes after B.
+		const StudentRecord* recordA = (const StudentRecord*)a;
+		const StudentRecord* recordB = (const StudentRecord*)b;
+		return (recordA->id - recordB->id);
+	}
+
+	int compare_id_desc(const void* a, const void* b)
+	{ 
+		//if record B is smaller than record B, return negative, A comes before B
+		//if record A is larger, return positive, A comes after B
+		const StudentRecord* recordA = (const StudentRecord*)a;
+		const StudentRecord* recordB = (const StudentRecord*)b;
+		return (recordB->id - recordA->id);
+	}
+	int compare_mark_asc(const void* a, const void* b)
+	{
+		//if A mark < B mark, A before B
+		//if A mark > B mark, A comes after B
+		const StudentRecord* recordA = (const StudentRecord*)a;
+		const StudentRecord* recordB = (const StudentRecord*)b;
+		if (recordA->mark < recordB->mark) return -1;
+		if (recordA->mark > recordB->mark) return 1;
+		return 0;
+	}
+	int compare_mark_desc(const void* a, const void* b)
+	{
+		//if mark A > mark B, A before B
+		//if mark A < mark B, A comes after B
+		const StudentRecord* recordA = (const StudentRecord*)a;
+		const StudentRecord* recordB = (const StudentRecord*)b;
+		if (recordA->mark > recordB->mark) return -1;
+		if (recordA->mark < recordB->mark) return 1;
+		return 0;
+	}
+	//implemented comparison functions
+	void sort_by_id_asc(CMSdb* db)
+	{
+		qsort(db->records, db->record_count, sizeof(StudentRecord), compare_id_asc);
+		printf("Sorted by ID (Ascending)\n");
+	}
+	void sort_by_id_desc(CMSdb* db)
+	{
+		qsort(db->records, db->record_count, sizeof(StudentRecord), compare_id_desc);
+		printf("Sorted by ID (Descending)\n");
+	}
+	void sort_by_mark_asc(CMSdb* db)
+	{
+		qsort(db->records, db->record_count, sizeof(StudentRecord), compare_mark_asc);
+		printf("Sorted by Mark (Ascending)\n");
+	}
+	void sort_by_mark_desc(CMSdb* db)
+	{
+		qsort(db->records, db->record_count, sizeof(StudentRecord), compare_mark_desc);
+		printf("Sorted by Mark (Descending)\n");
+	}
+	 
+

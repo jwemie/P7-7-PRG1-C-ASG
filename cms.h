@@ -22,6 +22,8 @@
 #define MAX_ID_LENGTH 7
 #define QUERY_CHOICES_MAX 5
 #define QUERY_CHOICES_MIN 1
+#define SORT_CHOICES_MAX 5
+#define SORT_CHOICES_MIN 1
 /*Display Constant Var*/
 #define DISPLAY_ID_WIDTH 10
 #define DISPLAY_NAME_WIDTH 40
@@ -81,5 +83,10 @@ int delete_record(CMSdb *db);
 int save_file(const CMSdb *db);
 void save_undo_state(CMSdb* db, const char* operation);
 int undo_last_operation(CMSdb* db);
+int sort_records(CMSdb *db); //sort functions
+void sort_by_id_asc(CMSdb *db);
+void sort_by_id_desc(CMSdb *db);
+void sort_by_mark_asc(CMSdb *db);
+void sort_by_mark_desc(CMSdb *db);
 #endif
 
