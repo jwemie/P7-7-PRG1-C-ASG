@@ -253,42 +253,60 @@ int show_all_records(const CMSdb* db) {
 /*
 * Insert a new record
 */
+/*
+* Insert a new record - PLACEHOLDER
+*/
 int insert_record(CMSdb* db) {
+	// check if other database is opened
 	if (!db->is_open) {
 		printf("CMS: No database is currently opened.\n");
 		return 0;
 	}
-
+	// check whether the database has reached the maximum record limit and call MAX_RECORDS function from cms.h
 	if (db->record_count >= MAX_RECORDS) {
 		printf("CMS: Database is full. Cannot insert more records.\n");
 		return 0;
 	}
 
-	char buffer[100];
+	char buffer[100]; // temporarily store users' input
 	int newID;
 	StudentRecord* record = &db->records[db->record_count];
 
-	//Get Student ID
+	// Input Student ID
 	while (1) {
 		printf("Enter Student ID: ");
+		// read the users' input into buffer
 		if (fgets(buffer, sizeof(buffer), stdin) == NULL) {
 			printf("Input error. Try again.\n");
 			continue;
 		}
-		// remove newline
+
+		// remove newline (ensure inputs has no new line)
 		buffer[strcspn(buffer, "\n")] = 0;
 
+		// Check length and call "MAX_ID_LENGTH" function from cms.h
 		if (strlen(buffer) != MAX_ID_LENGTH) {
 			printf("Error: ID must be %d characters.\n", MAX_ID_LENGTH);
 			continue;
 		}
 
-		newID = atoi(buffer);
-		if (newID == 0 && buffer[0] != '0') {
-			printf("Invalid input. Please enter a valid integer ID.\n");
+		// Check all characters must be digits
+		int all_digits = 1;
+		for (int i = 0; i < strlen(buffer); i++) {
+			if (!isdigit((unsigned char)buffer[i])) {
+				all_digits = 0;
+				break;
+			} // use "unsigned char" to make sure isdigit work correctly
+		}
+		if (!all_digits) {
+			printf("Error: ID must contain digits only (no letters, no symbols).\n");
 			continue;
 		}
 
+		// Convert string to integer
+		newID = atoi(buffer);
+
+		// Check if ID already exists
 		int exists = 0;
 		for (int i = 0; i < db->record_count; i++) {
 			if (db->records[i].id == newID) {
@@ -297,40 +315,53 @@ int insert_record(CMSdb* db) {
 				break;
 			}
 		}
+		// if user input ID already exists, go back and re-enter ID again
 		if (exists) continue;
 
 		record->id = newID;
 		break;
 	}
 
-	//Gwt Student Name
+
+	// Input Student Name
 	while (1) {
+		// Store users' input "Name"
 		get_string_input(record->name, sizeof(record->name), "Enter Student Name: ");
+
+		// Check the length of the name by calling "MAX_NAME_LENGTH" function from cms.h
 		if (strlen(record->name) > MAX_NAME_LENGTH) {
 			printf("Error: Name cannot exceed %d characters.\n", MAX_NAME_LENGTH);
 			continue;
 		}
-		int has_digit = 0;
+
+		// Check the characters: only allow letters and space
+		int valid = 1;
 		for (int i = 0; i < strlen(record->name); i++) {
-			if (isdigit((unsigned char)record->name[i])) {
-				has_digit = 1;
+			char c = record->name[i]; // stored in one variable and easier to check
+			if (!(isalpha((unsigned char)c) || c == ' ')) {
+				valid = 0;
 				break;
-			}
+			} // use "unsigned char" to make sure isalpha work correctly
 		}
-		if (has_digit) {
-			printf("Error: Name cannot contain digits.\n");
-			continue;
+
+		if (!valid) {
+			printf("Error: Name can only contain English letters and spaces (no digits, no symbols).\n");
+			continue; // if failed to input "Name", go back and re-enter again
 		}
+
 		break;
 	}
 
-	// ---- Get Programme ----
+	// Input Programme Name
 	while (1) {
 		get_string_input(record->programme, sizeof(record->programme), "Enter Programme: ");
+		// Check if the length of the input by calling function "MAX_PROGRAMME_LENGTH" from cms.h
 		if (strlen(record->programme) > MAX_PROGRAMME_LENGTH) {
 			printf("Error: Programme cannot exceed %d characters.\n", MAX_PROGRAMME_LENGTH);
 			continue;
-		}
+		} // if longer than the limit, go back and re-enter again
+
+		// Check if the input contains digit
 		int has_digit = 0;
 		for (int i = 0; i < strlen(record->programme); i++) {
 			if (isdigit((unsigned char)record->programme[i])) {
@@ -341,69 +372,70 @@ int insert_record(CMSdb* db) {
 		if (has_digit) {
 			printf("Error: Programme cannot contain digits.\n");
 			continue;
-		}
+		} // if contains digit, go back and re-enter again
 		break;
 	}
 
-	//Get Student Mark
+	// Input Mark
 	while (1) {
-		printf("Enter Mark (one decimal place, e.g., 0.1, 99.9): ");
+		printf("Enter Mark (integer or 1 decimal place): ");
 		if (fgets(buffer, sizeof(buffer), stdin) == NULL) {
 			printf("Input error. Try again.\n");
 			continue;
 		}
 
-		// remove newline
-		buffer[strcspn(buffer, "\n")] = 0;
-
+		buffer[strcspn(buffer, "\n")] = 0;  // remove newline
 		int len = strlen(buffer);
-		int dot_pos = -1;
+		int dot_count = 0, dot_pos = -1;
 
-		// Find position of decimal point
+		// Check characters
 		for (int i = 0; i < len; i++) {
+			// Check the dot, if have dot, then push to check dot_count
 			if (buffer[i] == '.') {
+				dot_count++;
 				dot_pos = i;
-				break;
+			}
+			else if (!isdigit((unsigned char)buffer[i])) {
+				printf("Error: Mark must be numeric.\n");
+				goto retry; // if have error, restart the loop
+			} // use "unsigned char" to make sure "isdigit" work correctly
+		}
+
+		// Check if have more than 1 dot
+		if (dot_count > 1) {
+			printf("Error: Mark must have at most one decimal point.\n");
+			goto retry;
+		}
+
+		// Check the digit after decimal point
+		if (dot_count == 1) {
+			// Must have exactly one digit after decimal (eg. 23.4, not 23.40)
+			if (dot_pos != len - 2) {
+				printf("Error: Must have exactly one decimal place.\n");
+				goto retry;
+			}
+
+			// Check if input number < 1, must put 0 before decimal point (eg: 0.5 correct, .5 incorrect)
+			if (dot_pos == 0) {
+				printf("Error: Number < 1 must have leading zero (0.x).\n");
+				goto retry;
 			}
 		}
 
-		// Validate format
-		if (dot_pos <= 0 || dot_pos != len - 2) {
-			// dot must exist, not first character, exactly one digit after dot
-			printf("Error: Mark must have exactly one decimal place and a leading zero if < 1.\n");
-			continue;
-		}
+		double mark = atof(buffer); // Convert to double
 
-		// Check leading zero if number < 1
-		if (dot_pos == 1 && buffer[0] != '0') {
-			printf("Error: Numbers less than 1 must have a leading zero (e.g., 0.1).\n");
-			continue;
-		}
-
-		// Check all characters except dot are digits
-		int valid = 1;
-		for (int i = 0; i < len; i++) {
-			if (i == dot_pos) continue;
-			if (!isdigit((unsigned char)buffer[i])) {
-				valid = 0;
-				break;
-			}
-		}
-		if (!valid) {
-			printf("Error: Mark must be numeric with one decimal.\n");
-			continue;
-		}
-
-		// Convert to double
-		double mark = atof(buffer);
+		// Chcek if the input mark is valid
 		if (mark < 0 || mark > 100) {
 			printf("Error: Mark must be between 0 and 100.\n");
-			continue;
+			goto retry;
 		}
 
 		record->mark = mark;
 		printf("Record added successfully!\n");
 		break;
+
+	retry:
+		continue;
 	}
 	db->record_count++;
 }
