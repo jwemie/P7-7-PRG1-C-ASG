@@ -121,8 +121,8 @@ void show_menu(void) {
 	printf("5. Query Record\n");
 	printf("6. Update Record\n");
 	printf("7. Delete Record\n");
-	printf("8. Save File\n");
-	printf("9. Undo\n");
+	printf("8. Undo\n");
+	printf("9. Save File\n");
 	printf("10. Exit\n");
 }
 
@@ -265,9 +265,17 @@ int insert_record(CMSdb* db) {
 		printf("CMS: No database is currently opened.\n");
 		return 0;
 	}
+
+	// Save current state before insertion for undo functionality
+	// Allows us to remove the new record if user wants to undo
+	save_undo_state(db, "INSERT");
+
+
+
 	// check whether the database has reached the maximum record limit and call MAX_RECORDS function from cms.h
 	if (db->record_count >= MAX_RECORDS) {
 		printf("CMS: Database is full. Cannot insert more records.\n");
+		db->undo.can_undo = 0; // Disable undo since insertion failed
 		return 0;
 	}
 
@@ -441,6 +449,10 @@ int insert_record(CMSdb* db) {
 		continue;
 	}
 	db->record_count++;
+
+	printf("CMS: You can see UNDO (Option 8) to revert this insertion if needed.\n");
+	return 1;
+
 }
 	//Query a Record
 
@@ -761,12 +773,18 @@ int insert_record(CMSdb* db) {
 			printf("CMS: No records available to update.\n");
 			return 0;
 		}
+
+		// Save current state for undo functionality before updating
+		//Store the old values so we can revert if needed
+		save_undo_state(db, "UPDATE");
+
 		//update student ID
 		int studentID;
 		printf("Enter student ID to update:\n");
 		if (scanf_s("%d", &studentID) != 1) {
 			printf("CMS: Invalid ID.\n");
 			clear_input_buffer();
+			db->undo.can_undo = 0; // Cancel undo since no update occurred
 			return 0;
 		}
 
@@ -781,6 +799,7 @@ int insert_record(CMSdb* db) {
 		if (recordsindex == -1) {
 			printf("CMS: The record with ID = %d does not exist.\n", studentID);
 			clear_input_buffer();
+			db->undo.can_undo = 0; // Cancel undo since no update occurred
 			return 0;
 		}
 
@@ -804,6 +823,7 @@ int insert_record(CMSdb* db) {
 		if (scanf_s("%d", &choices) != 1) {
 			printf("CMS: Invalid choice format.\n");
 			clear_input_buffer();
+			db->undo.can_undo = 0; // Cancel undo since no update occurred
 			return 0;
 		}
 		clear_input_buffer();
@@ -860,6 +880,9 @@ int insert_record(CMSdb* db) {
 		printf("Name: %s\n", record->name);
 		printf("Programme: %s\n", record->programme);
 		printf("Mark: %.1f\n", record->mark);
+
+		//Inform user they can undo this update to restore old values
+		printf("CMS: You can UNDO (Option 8) to restore the old values if needed.\n");
 
 		return 1;
 	}
@@ -948,7 +971,7 @@ int insert_record(CMSdb* db) {
 
 		// Notify user of successful deletion
 		printf("CMS: The record with ID=%d is successfully deleted.\n", id_to_delete);
-		printf("CMS: You can undo this deletion using the 'Option 8' option.\n");
+		printf("CMS: You can UNDO (Option 8) to undo the deletion.\n");
 
 		return 1;  //The deletion was successful
 	}
@@ -960,8 +983,47 @@ int insert_record(CMSdb* db) {
 			printf("CMS: No database is currently opened.\n");
 			return 0;
 		}
-		printf("CMS: Save file function - TO BE IMPLEMENTED\n");
-		printf("CMS: Would save %d records to file\n", db->record_count);
+
+		// Check if there are any records to save
+		if (db->record_count == 0) {
+			printf("CMS: No records to save (Database is empty).\n");
+			return 0;
+		}
+
+		//Open the file for writing (this will overwrite the existing file)
+		FILE* file = fopen(db->current_filename, "w");
+
+		// Check if file open successfully
+		if (file == NULL) {
+			printf("CMS: Error - Cannot save to file \"%s\"\n", db->current_filename);
+			printf("CMS: Please check if the file is not opened in another program.\n");
+			return 0;
+		}
+
+		//Write all student records to the file
+		for (int i = 0; i < db->record_count; i++) {
+			// Write each record with tab-separated values
+			fprintf(file, "%d\t%s\t%s\t%.1f\n",
+				db->records[i].id,
+				db->records[i].name,
+				db->records[i].programme,
+				db->records[i].mark);
+		}
+
+		//Close the file
+		fclose(file);
+
+		//Clear undo state (Since changes are now permanent
+		//After saving, there's nothing to undo - all changes are committed
+		((CMSdb*)db)->undo.can_undo = 0;
+		strcpy_s(((CMSdb*)db)->undo.last_operation,
+			sizeof(((CMSdb*)db)->undo.last_operation), "");
+
+		//Print display success message
+		printf("CMS: The database file \"%s\" is successfully saved.\n", db->current_filename);
+		printf("CMS: %d record(s) saved to file.\n", db->record_count);
+		printf("CMS: All changes have been committed (cannot be undone after save).\n");
+
 		return 1;
 	}
 /*
@@ -974,7 +1036,7 @@ int insert_record(CMSdb* db) {
 		}
 
 		if (!db->undo.can_undo) { // No undo available
-			printf("CMS: Nothing to undo. No delete operation has been performed yet.\n");
+			printf("CMS: Nothing to undo. No operation has been performed yet.\n");
 			return 0;
 		}
 

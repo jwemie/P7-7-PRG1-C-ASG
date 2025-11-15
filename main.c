@@ -10,7 +10,7 @@ int get_valid_menu_choice(void) {
 
 	while (1) {
 		show_menu();
-		printf("Enter your choice (1-8): ");
+		printf("Enter your choice (1-9): ");
 
 		if (fgets(input, sizeof(input), stdin) == NULL) 
 		{
@@ -26,13 +26,13 @@ int get_valid_menu_choice(void) {
 
 		if (strlen(input) != 2 || input[1] != '\n') //check input length is only 1 digit
 		{
-			printf("Invalid input! Please enter a single digit (1-8).\n");
+			printf("Invalid input! Please enter a single digit (1-9).\n");
 			continue;
 		}
 
-		if (input[0] < '1' || input[0] > '8') 
+		if (input[0] < '1' || input[0] > '9') 
 		{
-			printf("Invalid choice! Please enter a number between 1-8.\n");
+			printf("Invalid choice! Please enter a number between 1-9.\n");
 			continue;
 		}
 		choice = input[0] - '0';
