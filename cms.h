@@ -13,6 +13,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <ctype.h>
 
 /*Constant var*/
 #define MAX_NAME_LENGTH 40//max char for names

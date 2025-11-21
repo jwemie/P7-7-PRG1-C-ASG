@@ -749,7 +749,7 @@ int insert_record(CMSdb* db) {
 	}
 
 
-/*
+	/*
 * Update existing record
 */
 	int update_record(CMSdb* db) {
@@ -761,13 +761,51 @@ int insert_record(CMSdb* db) {
 			printf("CMS: No records available to update.\n");
 			return 0;
 		}
-		//update student ID
+
+		// Get student ID to update with proper validation
 		int studentID;
-		printf("Enter student ID to update:\n");
-		if (scanf_s("%d", &studentID) != 1) {
-			printf("CMS: Invalid ID.\n");
-			clear_input_buffer();
-			return 0;
+		char id_input[100];
+
+		while (1) {
+			printf("Enter student ID to update: ");
+
+			if (fgets(id_input, sizeof(id_input), stdin) == NULL) {
+				printf("Input error. Try again.\n");
+				continue;
+			}
+
+			// Remove newline character
+			id_input[strcspn(id_input, "\n")] = 0;
+
+			// Check if input is empty
+			if (strlen(id_input) == 0) {
+				printf("Error: ID cannot be empty.\n");
+				continue;
+			}
+
+			// Check ALL characters must be digits (0-9) - this is the FIRST check
+			int all_digits = 1;
+			for (int i = 0; i < strlen(id_input); i++) {
+				if (id_input[i] < '0' || id_input[i] > '9') {
+					all_digits = 0;
+					break;
+				}
+			}
+
+			if (!all_digits) {
+				printf("Error: ID must contain digits only (no letters, no symbols).\n");
+				continue;
+			}
+
+			// THEN Check length - must be exactly 7 digits
+			if (strlen(id_input) != MAX_ID_LENGTH) {
+				printf("Error: ID must be %d digits.\n", MAX_ID_LENGTH);
+				continue;
+			}
+
+			// Convert string to integer
+			studentID = atoi(id_input);
+			break;
 		}
 
 		int recordsindex = -1; //check whether the student ID already exist
@@ -780,7 +818,6 @@ int insert_record(CMSdb* db) {
 		// if no record is found with the student id provided
 		if (recordsindex == -1) {
 			printf("CMS: The record with ID = %d does not exist.\n", studentID);
-			clear_input_buffer();
 			return 0;
 		}
 
@@ -795,25 +832,77 @@ int insert_record(CMSdb* db) {
 
 		//select which area to update
 		int choices;
-		printf("Select field to update:\n");
-		printf("1. Update Name\n");
-		printf("2. Update Programme\n");
-		printf("3. Update Mark\n");
-		printf("Please enter your choice (1-3): ");
+		char choice_input[100];
 
-		if (scanf_s("%d", &choices) != 1) {
-			printf("CMS: Invalid choice format.\n");
-			clear_input_buffer();
-			return 0;
+		while (1) {
+			printf("Select field to update:\n");
+			printf("1. Update Name\n");
+			printf("2. Update Programme\n");
+			printf("3. Update Mark\n");
+			printf("Please enter your choice (1-3): ");
+
+			if (fgets(choice_input, sizeof(choice_input), stdin) == NULL) {
+				printf("Input error. Try again.\n");
+				continue;
+			}
+
+			// Remove newline character
+			choice_input[strcspn(choice_input, "\n")] = 0;
+
+			// Validate choice input
+			if (strlen(choice_input) != 1 || !isdigit(choice_input[0])) {
+				printf("Invalid choice. Please enter a single digit (1-3).\n");
+				continue;
+			}
+
+			choices = choice_input[0] - '0';
+
+			if (choices < 1 || choices > 3) {
+				printf("Invalid choice. Please enter a number between 1-3.\n");
+				continue;
+			}
+			break;
 		}
-		clear_input_buffer();
 
 		//update the choices
 		switch (choices) {
 		case 1: //update name
 		{
 			char updatedname[MAX_NAME_LENGTH];
-			get_string_input(updatedname, sizeof(updatedname), "Enter updated name: ");
+			int valid_name = 0;
+
+			while (!valid_name) {
+				get_string_input(updatedname, sizeof(updatedname), "Enter updated name: ");
+
+				// Check if name is empty
+				if (strlen(updatedname) == 0) {
+					printf("Error: Name cannot be empty.\n");
+					continue;
+				}
+
+				// Check the length of the name
+				if (strlen(updatedname) > MAX_NAME_LENGTH) {
+					printf("Error: Name cannot exceed %d characters.\n", MAX_NAME_LENGTH);
+					continue;
+				}
+
+				// Check the characters: only allow letters and space
+				int valid = 1;
+				for (int i = 0; i < strlen(updatedname); i++) {
+					char c = updatedname[i];
+					if (!(isalpha((unsigned char)c) || c == ' ')) {
+						valid = 0;
+						break;
+					}
+				}
+
+				if (!valid) {
+					printf("Error: Name can only contain English letters and spaces (no digits, no symbols).\n");
+					continue;
+				}
+
+				valid_name = 1;
+			}
 
 			strcpy_s(record->name, sizeof(record->name), updatedname);
 			printf("CMS: The record with ID = %d is successfully updated.\n", studentID);
@@ -822,7 +911,40 @@ int insert_record(CMSdb* db) {
 		case 2: //update programme
 		{
 			char updatedprog[MAX_PROGRAMME_LENGTH];
-			get_string_input(updatedprog, sizeof(updatedprog), "Enter updated programme: ");
+			int valid_programme = 0;
+
+			while (!valid_programme) {
+				get_string_input(updatedprog, sizeof(updatedprog), "Enter updated programme: ");
+
+				// Check if programme is empty
+				if (strlen(updatedprog) == 0) {
+					printf("Error: Programme cannot be empty.\n");
+					continue;
+				}
+
+				// Check the length of the programme
+				if (strlen(updatedprog) > MAX_PROGRAMME_LENGTH) {
+					printf("Error: Programme cannot exceed %d characters.\n", MAX_PROGRAMME_LENGTH);
+					continue;
+				}
+
+				// Check if the input contains only letters and spaces
+				int valid = 1;
+				for (int i = 0; i < strlen(updatedprog); i++) {
+					char c = updatedprog[i];
+					if (!(isalpha((unsigned char)c) || c == ' ')) {
+						valid = 0;
+						break;
+					}
+				}
+
+				if (!valid) {
+					printf("Error: Programme can only contain English letters and spaces (no digits, no symbols).\n");
+					continue;
+				}
+
+				valid_programme = 1;
+			}
 
 			strcpy_s(record->programme, sizeof(record->programme), updatedprog);
 			printf("CMS: The record with ID = %d is successfully updated.\n", studentID);
@@ -830,27 +952,81 @@ int insert_record(CMSdb* db) {
 
 		case 3: // update mark
 		{
+			char mark_input[100];
 			float updatedmarks;
 			int validmark = 0;
-			while (!validmark) {
-				printf("Enter updated mark: ");
-				if (scanf_s("%f", &updatedmarks) != 1) {
-					printf("CMS: Invalid mark. Please enter the updated mark:\n");
-					clear_input_buffer();
-				}
-				else {
-					clear_input_buffer();
 
-					if (updatedmarks < 0 || updatedmarks > 100) {
-						printf("CMS: Invalid mark. Please enter the updated mark:\n");
+			while (!validmark) {
+				printf("Enter updated mark (0-100, max 1 decimal place): ");
+
+				if (fgets(mark_input, sizeof(mark_input), stdin) == NULL) {
+					printf("Input error. Try again.\n");
+					continue;
+				}
+
+				// Remove newline character
+				mark_input[strcspn(mark_input, "\n")] = 0;
+
+				// Validate mark format
+				int valid_format = 1;
+				int has_decimal = 0;
+				int digits_after_decimal = 0;
+				int digit_count = 0;
+
+				for (int i = 0; mark_input[i] != '\0'; i++) {
+					if (mark_input[i] == '.') {
+						if (has_decimal) {
+							valid_format = 0; // Multiple decimal points
+							break;
+						}
+						has_decimal = 1;
+					}
+					else if (isdigit((unsigned char)mark_input[i])) {
+						if (has_decimal) {
+							digits_after_decimal++;
+							if (digits_after_decimal > 1) {
+								valid_format = 0; // More than 1 decimal place
+								break;
+							}
+						}
+						else {
+							digit_count++;
+						}
 					}
 					else {
-						validmark = 1;
+						valid_format = 0; // Invalid character
+						break;
 					}
-					record->mark = updatedmarks;
-					printf("\nCMS: The record with ID = %d is successfully updated.\n", studentID);
 				}
-			} break;
+
+				// Check if it ends with a decimal point
+				if (has_decimal && digits_after_decimal == 0) {
+					valid_format = 0; // Ends with decimal point (e.g., "90.")
+				}
+
+				// Check if there are digits before decimal (for numbers < 1)
+				if (has_decimal && digit_count == 0) {
+					valid_format = 0; // No digits before decimal (e.g., ".5")
+				}
+
+				// Check if there are any digits at all
+				if (digit_count == 0 && digits_after_decimal == 0) {
+					valid_format = 0; // No digits entered
+				}
+
+				// Convert to float and check range
+				if (!valid_format || sscanf_s(mark_input, "%f", &updatedmarks) != 1 ||
+					updatedmarks < 0 || updatedmarks > 100) {
+					printf("Invalid mark. Please enter a number between 0-100 with maximum 1 decimal place.\n");
+					printf("Examples: 70, 70.0, 0.5\n");
+					continue;
+				}
+
+				validmark = 1;
+				record->mark = updatedmarks;
+				printf("CMS: The record with ID = %d is successfully updated.\n", studentID);
+			}
+			break;
 		}
 		}
 
@@ -863,6 +1039,7 @@ int insert_record(CMSdb* db) {
 
 		return 1;
 	}
+
 /*
 * Delete record
 */
