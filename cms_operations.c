@@ -121,8 +121,8 @@ void show_menu(void) {
 	printf("5. Query Record\n");
 	printf("6. Update Record\n");
 	printf("7. Delete Record\n");
-	printf("8. Save File\n");
-	printf("9. Undo\n");
+	printf("8. Undo\n");
+	printf("9. Save File\n");
 	printf("10. Exit\n");
 }
 

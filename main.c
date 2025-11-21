@@ -24,11 +24,9 @@ int get_valid_menu_choice(void) {
 			clear_input_buffer();
 		}
 
-		// Remove newline character
-		input[strcspn(input, "\n")] = 0;
-
-		if (strcmp(input, "10") == 0) {
-			return 10;  // Directly return -1 for exit
+		if (strlen(input) == 3 && input[0] == '1' && input[1] == '0' && input[2] == '\n') 
+		{
+			return 10;  // Return 10 for exit
 		}
 		if (strlen(input) != 2 || input[1] != '\n') //check input length is only 1 digit
 		{
