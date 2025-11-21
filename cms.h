@@ -18,7 +18,7 @@
 #define MAX_NAME_LENGTH 40//max char for names
 #define MAX_PROGRAMME_LENGTH 40 //max char for programme names
 #define MAX_RECORDS 1000 //max no. of entries in the CMS
-#define MAX_FILENAME_LENGTH 100 //max char for filename
+#define MAX_FILENAME_LENGTH 39 //max char for filename
 #define MAX_ID_LENGTH 7
 #define QUERY_CHOICES_MAX 5
 #define QUERY_CHOICES_MIN 1
