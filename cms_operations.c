@@ -1,4 +1,4 @@
-#define _CRT_SECURE_NO_WARNINGS
+﻿#define _CRT_SECURE_NO_WARNINGS
 /*
 * Course Management System (CMS)
 * Implementation file - code for all CMS functions
@@ -80,7 +80,6 @@ int get_valid_student_id(void)
 
 /*
 * Initialize database with default values
-* Sets up a clean, empty database ready for use
 */
 void initialize_db(CMSdb* db) {
 	//null pointer check
@@ -90,7 +89,130 @@ void initialize_db(CMSdb* db) {
 
 	db->record_count = 0;			//start with no records
 	db->is_open = 0;				//database is not opened yet flag
-	strcpy_s(db->current_filename, sizeof(db->current_filename), "Sample-CMS"); //No current file
+	strcpy_s(db->current_filename, sizeof(db->current_filename),""); //No current file
+}
+
+//check for header lines
+int is_header_line(const char* line) 
+{
+	// Common header patterns
+	if (strstr(line, "ID") != NULL &&
+		(strstr(line, "Name") != NULL || strstr(line, "NAME") != NULL)) {
+		return 1;
+	}
+
+	// Lines starting with non-digits are likely headers
+	if (!isdigit(line[0])) {
+		return 1;
+	}
+
+	return 0;
+}
+/*
+* Parse student record from line
+*/
+int parse_student_record(const char* line, StudentRecord* record) {
+	int parsed = sscanf_s(line, "%d %49[^\t] %49[^\t] %f",
+		&record->id,
+		record->name, (rsize_t)sizeof(record->name),
+		record->programme, (rsize_t)sizeof(record->programme),
+		&record->mark);
+
+	if (parsed != 4) {
+		// Tab-separated failed - this format is required
+		return 0;
+	}
+	sanitize_input_fields(record);
+	return parsed;
+}
+/*
+* Valid Student Record
+*/
+int valid_student_record(const StudentRecord* record) {
+	int valid = 1;
+
+	// Validate ID 
+	if (record->id < MIN_VALID_ID || record->id > MAX_VALID_ID) 
+	{
+		printf("  - Invalid ID: %d (must be 7 digits between %d-%d)\n",
+			record->id, MIN_VALID_ID, MAX_VALID_ID);
+		valid = 0;
+	}
+
+	// Validate Name
+	if (strlen(record->name) == 0) {
+		printf("  - Name cannot be empty\n");
+		valid = 0;
+	}
+	else if (strlen(record->name) > MAX_NAME_LENGTH) {
+		printf("  - Name too long: '%s' (%zu characters, max %d)\n",
+			record->name, strlen(record->name), MAX_NAME_LENGTH);
+		valid = 0;
+	}
+
+	// Validate programme
+	if (strlen(record->programme) == 0) {
+		printf("  - Programme cannot be empty\n");
+		valid = 0;
+	}
+	else if (strlen(record->programme) > MAX_PROGRAMME_LENGTH) {
+		printf("  - Programme too long: '%s' (%zu characters, max %d)\n",
+			record->programme, strlen(record->programme), MAX_PROGRAMME_LENGTH);
+		valid = 0;
+	}
+
+	// Validate mark (0-100 range)
+	if (record->mark < 0 || record->mark > 100) {
+		printf("  - Invalid mark: %.1f (must be between 0-100)\n", record->mark);
+		valid = 0;
+	}
+
+	return valid;
+}
+int detect_file_format(const char* filename) {
+	FILE* test_file = fopen(filename, "r");
+	if (!test_file) return 0;
+
+	char line[256];
+	int tab_count = 0;
+	int data_lines = 0;
+
+	while (fgets(line, sizeof(line), test_file) && data_lines < 5) {
+		if (is_header_line(line)) continue;
+
+		// Count tabs in potential data lines
+		for (int i = 0; line[i]; i++) {
+			if (line[i] == '\t') tab_count++;
+		}
+		data_lines++;
+	}
+	fclose(test_file);
+
+	// If we found data lines with 3 tabs, format is good
+	return (data_lines > 0 && tab_count >= data_lines * 3);
+}
+void sanitize_input_fields(StudentRecord* record) {
+	// Remove leading & trailing whitespace from name and programme
+	char* fields[] = { record->name, record->programme };
+
+	for (int i = 0; i < 2; i++) {
+		char* str = fields[i];
+		if (!str) continue;
+
+		//cut leading spaces
+		char* start = str;
+		while (*start && isspace((unsigned char)*start)) start++;
+
+		//cut trailing spaces  
+		char* end = start + strlen(start) - 1;
+		while (end > start && isspace((unsigned char)*end)) end--;
+
+		//move trimmed string
+		if (start != str) {
+			memmove(str, start, end - start + 1);
+		}
+		str[end - start + 1] = '\0';
+	}
 }
 /*
 * Undo File
@@ -170,10 +292,11 @@ int open_file(CMSdb* db) {
 	char filename[MAX_FILENAME_LENGTH];
 	get_string_input(filename, sizeof(filename), "Enter filename to open: ");
 
-
 	//Try to open the file
 	FILE* file = fopen(filename, "r");
 	if (file == NULL) {
+		printf("DEBUG: fopen failed! Error: ");
+		perror("");
 		printf("CMS: Failed to open file \"%s\"\n", filename);
 		return 0;
 	}
@@ -181,38 +304,93 @@ int open_file(CMSdb* db) {
 	//reset database before loading new data
 	db->record_count = 0;
 
-	char line[256];
-	int header_passed = 0; //Flag to track when past headers
+	char line[MAX_LINE_LENGTH];
+	int line_number = 0;
+	int data_lines_found = 0;
+	int data_lines_loaded = 0;
+	int header_lines_skipped = 0;
+	printf("CMS: Reading file \"%s\"...\n", filename);
+
 
 	// Read file line by line
 	while (fgets(line, sizeof(line), file) != NULL && db->record_count < MAX_RECORDS)
 	{
+		line_number++;
+
+
 		//remove newline char
 		line[strcspn(line, "\n")] = 0;
+
 
 		// Skip empty lines
 		if (strlen(line) == 0) {
 			continue;
 		}
-		// Skip header lines - look for lines that DON'T start with numbers
-		if (!isdigit(line[0])) {
+		//Detect and Skip header lines
+		if (is_header_line(line))
+		{
+			printf("CMS: Skipping Header Lines %d: %s\n", line_number, line);
+			header_lines_skipped++;
 			continue;
 		}
 
-		// Now parse student records (lines that start with numbers)
+		//Parse student records (lines that start with numbers)
 		StudentRecord* record = &db->records[db->record_count];
 
-		int parsed = sscanf(line, "%d %49[^\t] %49[^\t] %f",
-			&record->id, record->name, record->programme, &record->mark);
+		int parsed = sscanf_s(line, "%d %49[^\t] %49[^\t] %f",
+			&record->id,
+			record->name, (rsize_t)sizeof(record->name),
+			record->programme, (rsize_t)sizeof(record->programme),
+			&record->mark);
 
 		if (parsed == 4) { //if all fields were parsed
-			db->record_count++;
+			//validate parsed data
+			if (valid_student_record(record))
+			{
+				//duplicate check
+				int is_duplicate = 0;
+				for (int i = 0; i < db->record_count; i++) {
+					if (db->records[i].id == record->id) {
+						printf("CMS: Warning - Duplicate ID %d on line %d, skipping\n", record->id, line_number);
+						is_duplicate = 1;
+						break;
+					}
+				}
+				if (is_duplicate) {
+					continue; // Skip this duplicate record
+				}
+				db->record_count++;
+				data_lines_loaded++;
+			}
+
+			else
+			{
+				printf("CMS: Invalid Data on Line %d: %s\n", line_number, line);
+			}
 		}
+		else
+		{
+			printf("CMS: Could not parse line %d (Needs 4 fields of data, found %d): %s\n", line_number, parsed, line);
+		}
+		data_lines_found++;
 
 	}
 	fclose(file);
+	//file parse stats
+	printf("CMS: File processing complete:\n");
+	printf("  - Lines processed: %d\n", line_number);
+	printf("  - Header lines skipped: %d\n", header_lines_skipped);
+	printf("  - Data lines found: %d\n", data_lines_found);
+	printf("  - Valid records loaded: %d\n", data_lines_loaded);
+	//empty file detection
+	if (data_lines_found == 0) {
+		printf("CMS: Error - No data records found in file\n");
+		printf("CMS: File may be empty or contain only headers\n");
+		return 0;
+	}
 
-	if (db->record_count > 0) {
+	if (db->record_count > 0) 
+	{
 		db->is_open = 1;
 		strcpy_s(db->current_filename, sizeof(db->current_filename), filename);
 		printf("CMS: Successfully opened file \"%s\" is successfully opened\n", filename);
@@ -220,7 +398,7 @@ int open_file(CMSdb* db) {
 		return 1;
 	}
 	else {
-		printf("CMS: File format error - could not find data header\n");
+		printf("CMS: Error - No Valid data found in file.\n");
 		return 0;
 	}
 }
@@ -256,18 +434,17 @@ int show_all_records(const CMSdb* db) {
 /*
 * Insert a new record
 */
-/*
-* Insert a new record - PLACEHOLDER
-*/
 int insert_record(CMSdb* db) {
 	// check if other database is opened
 	if (!db->is_open) {
 		printf("CMS: No database is currently opened.\n");
 		return 0;
 	}
+	save_undo_state(db, "INSERT");
 	// check whether the database has reached the maximum record limit and call MAX_RECORDS function from cms.h
 	if (db->record_count >= MAX_RECORDS) {
 		printf("CMS: Database is full. Cannot insert more records.\n");
+		db->undo.can_undo = 0;
 		return 0;
 	}
 
@@ -441,6 +618,8 @@ int insert_record(CMSdb* db) {
 		continue;
 	}
 	db->record_count++;
+	printf("CMS: You can see UNDO (Option 8) to revert this insertion if needed.\n");
+	return 1;
 }
 	//Query a Record
 
@@ -762,51 +941,9 @@ int insert_record(CMSdb* db) {
 			return 0;
 		}
 
-		// get student ID to update with proper validation
-		int studentID;
-		char id_input[100];
-
-		while (1) {
-			printf("Enter student ID to update: ");
-
-			if (fgets(id_input, sizeof(id_input), stdin) == NULL) {
-				printf("Input error. Try again.\n");
-				continue;
-			}
-
-			// remove newline character
-			id_input[strcspn(id_input, "\n")] = 0;
-
-			// check if input is empty
-			if (strlen(id_input) == 0) {
-				printf("Error: ID cannot be empty.\n");
-				continue;
-			}
-
-			// initial check that characters input are all digits
-			int all_digits = 1;
-			for (int i = 0; i < strlen(id_input); i++) {
-				if (id_input[i] < '0' || id_input[i] > '9') {
-					all_digits = 0;
-					break;
-				}
-			}
-
-			if (!all_digits) {
-				printf("Error: ID must contain digits only (no letters, no symbols).\n");
-				continue;
-			}
-
-			// subsequent check for length of Student ID
-			if (strlen(id_input) != MAX_ID_LENGTH) {
-				printf("Error: ID must be %d digits.\n", MAX_ID_LENGTH);
-				continue;
-			}
-
-			// convert string to integer
-			studentID = atoi(id_input);
-			break;
-		}
+		// ✅ IMPROVEMENT 1: Use get_valid_student_id() for initial ID input
+		printf("Enter student ID to update:\n");
+		int studentID = get_valid_student_id();
 
 		int recordsindex = -1; //check whether the student ID already exist
 		for (int i = 0; i < db->record_count; i++) {
@@ -832,22 +969,16 @@ int insert_record(CMSdb* db) {
 
 		//select which area to update
 		int choices;
-		char choice_input[100];
+		char choice_input[4]; // ✅ Reduced size since we only need 1 character
 
 		while (1) {
 			printf("Select field to update:\n");
 			printf("1. Update Name\n");
 			printf("2. Update Programme\n");
 			printf("3. Update Mark\n");
-			printf("Please enter your choice (1-3): ");
 
-			if (fgets(choice_input, sizeof(choice_input), stdin) == NULL) {
-				printf("Input error. Try again.\n");
-				continue;
-			}
-
-			// remove newline character
-			choice_input[strcspn(choice_input, "\n")] = 0;
+			// ✅ IMPROVEMENT 2: Use get_string_input() for menu choices
+			get_string_input(choice_input, sizeof(choice_input), "Please enter your choice (1-3): ");
 
 			// validate choice input
 			if (strlen(choice_input) != 1 || !isdigit(choice_input[0])) {
@@ -863,6 +994,10 @@ int insert_record(CMSdb* db) {
 			}
 			break;
 		}
+
+		// Save current state for undo functionality before updating
+		//Store the old values so we can revert if needed
+		save_undo_state(db, "UPDATE");
 
 		//update the choices
 		switch (choices) {
@@ -1037,6 +1172,8 @@ int insert_record(CMSdb* db) {
 		printf("Programme: %s\n", record->programme);
 		printf("Mark: %.1f\n", record->mark);
 
+		//undo notification
+		printf("CMS: You can UNDO to restore the old values if needed.\n");
 		return 1;
 	}
 
@@ -1137,8 +1274,47 @@ int insert_record(CMSdb* db) {
 			printf("CMS: No database is currently opened.\n");
 			return 0;
 		}
-		printf("CMS: Save file function - TO BE IMPLEMENTED\n");
-		printf("CMS: Would save %d records to file\n", db->record_count);
+
+		// Check if there are any records to save
+		if (db->record_count == 0) {
+			printf("CMS: No records to save (Database is empty).\n");
+			return 0;
+		}
+
+		//Open the file for writing (this will overwrite the existing file)
+		FILE* file = fopen(db->current_filename, "w");
+
+		// Check if file open successfully
+		if (file == NULL) {
+			printf("CMS: Error - Cannot save to file \"%s\"\n", db->current_filename);
+			printf("CMS: Please check if the file is not opened in another program.\n");
+			return 0;
+		}
+
+		//Write all student records to the file
+		for (int i = 0; i < db->record_count; i++) {
+			// Write each record with tab-separated values
+			fprintf(file, "%d\t%s\t%s\t%.1f\n",
+				db->records[i].id,
+				db->records[i].name,
+				db->records[i].programme,
+				db->records[i].mark);
+		}
+
+		//Close the file
+		fclose(file);
+
+		//Clear undo state (Since changes are now permanent
+		//After saving, there's nothing to undo - all changes are committed
+		((CMSdb*)db)->undo.can_undo = 0;
+		strcpy_s(((CMSdb*)db)->undo.last_operation,
+			sizeof(((CMSdb*)db)->undo.last_operation), "");
+
+		//Print display success message
+		printf("CMS: The database file \"%s\" is successfully saved.\n", db->current_filename);
+		printf("CMS: %d record(s) saved to file.\n", db->record_count);
+		printf("CMS: All changes have been committed (cannot be undone after save).\n");
+
 		return 1;
 	}
 /*

@@ -1,0 +1,8 @@
+Database Name MissingFields-CMS
+Authors Test
+
+Table Name StudentRecords
+ID	Name	Programme	Mark
+2301234	Joshua Chen	70.5
+2201234	Isaac Teo
+2304567	Digital Supply Chain	85.9

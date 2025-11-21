@@ -16,6 +16,9 @@
 #include <ctype.h>
 
 /*Constant var*/
+#define MIN_VALID_ID 1000000 //smallest id
+#define MAX_VALID_ID 9999999 //biggest id
+#define MAX_LINE_LENGTH 256
 #define MAX_NAME_LENGTH 40//max char for names
 #define MAX_PROGRAMME_LENGTH 40 //max char for programme names
 #define MAX_RECORDS 1000 //max no. of entries in the CMS
@@ -69,6 +72,11 @@ int get_valid_menu_choice(void);
 void clear_input_buffer(void);
 void get_string_input(char *buffer, int size, const char* prompt);
 int get_valid_student_id(void);
+int is_header_line(const char* line);
+int parse_student_record(const char* line, StudentRecord* record);
+int valid_student_record(const StudentRecord* record);
+int detect_file_format(const char* filename);
+void sanitize_input_fields(StudentRecord* record);
 
 //Core functions (called by menu handler)
 int open_file(CMSdb *db); 
