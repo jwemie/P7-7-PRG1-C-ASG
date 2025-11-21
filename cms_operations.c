@@ -388,65 +388,70 @@ int insert_record(CMSdb* db) {
 	}
 
 	// Input Mark
-	while (1) {
+	int valid_mark = 0;
+
+	while (!valid_mark) {
+
 		printf("Enter Mark (integer or 1 decimal place): ");
+
 		if (fgets(buffer, sizeof(buffer), stdin) == NULL) {
 			printf("Input error. Try again.\n");
-			continue;
+			continue; // if error, go back to re-enter number again
 		}
 
-		buffer[strcspn(buffer, "\n")] = 0;  // remove newline
+		buffer[strcspn(buffer, "\n")] = 0; // change to string make sure the input string will not include "\n"
 		int len = strlen(buffer);
 		int dot_count = 0, dot_pos = -1;
 
-		// Check characters
+		// check chars
+		int numeric_ok = 1;
 		for (int i = 0; i < len; i++) {
-			// Check the dot, if have dot, then push to check dot_count
+
+			// if find decimal, then record the position
 			if (buffer[i] == '.') {
 				dot_count++;
 				dot_pos = i;
 			}
+
+			// if not a digit or decimal, break "check chars" loop
 			else if (!isdigit((unsigned char)buffer[i])) {
-				printf("Error: Mark must be numeric.\n");
-				goto retry; // if have error, restart the loop
-			} // use "unsigned char" to make sure "isdigit" work correctly
+				numeric_ok = 0;
+				break;
+			}
 		}
 
-		// Check if have more than 1 dot
+		if (!numeric_ok) {
+			printf("Error: Mark must be numeric.\n");
+			continue;
+		}
 		if (dot_count > 1) {
-			printf("Error: Mark must have at most one decimal point.\n");
-			goto retry;
+			printf("Error: Mark must have only one decimal point.\n");
+			continue;
 		}
 
-		// Check the digit after decimal point
+		// only allow 1 dp. eg: 24.6 is correct, 24.77 is incorrect
 		if (dot_count == 1) {
-			// Must have exactly one digit after decimal (eg. 23.4, not 23.40)
 			if (dot_pos != len - 2) {
 				printf("Error: Must have exactly one decimal place.\n");
-				goto retry;
+				continue;
 			}
 
-			// Check if input number < 1, must put 0 before decimal point (eg: 0.5 correct, .5 incorrect)
+			// if 0 < input number < 1, must have a leading zero. eg: 0.5 is correct, .5 is wrong
 			if (dot_pos == 0) {
-				printf("Error: Number < 1 must have leading zero (0.x).\n");
-				goto retry;
+				printf("Error: Number < 1 must have leading zero.\n");
+				continue;
 			}
 		}
 
-		double mark = atof(buffer); // Convert to double
-
-		// Chcek if the input mark is valid
+		// check if the number in correct range
+		double mark = atof(buffer); // change the string to double
 		if (mark < 0 || mark > 100) {
 			printf("Error: Mark must be between 0 and 100.\n");
-			goto retry;
+			continue;
 		}
 
 		record->mark = mark;
-		printf("Record added successfully!\n");
-		break;
-
-	retry:
-		continue;
+		valid_mark = 1;
 	}
 	db->record_count++;
 
