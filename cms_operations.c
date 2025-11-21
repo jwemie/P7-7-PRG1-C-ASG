@@ -749,7 +749,7 @@ int insert_record(CMSdb* db) {
 	}
 
 
-	/*
+/*
 * Update existing record
 */
 	int update_record(CMSdb* db) {
@@ -762,7 +762,7 @@ int insert_record(CMSdb* db) {
 			return 0;
 		}
 
-		// Get student ID to update with proper validation
+		// get student ID to update with proper validation
 		int studentID;
 		char id_input[100];
 
@@ -774,16 +774,16 @@ int insert_record(CMSdb* db) {
 				continue;
 			}
 
-			// Remove newline character
+			// remove newline character
 			id_input[strcspn(id_input, "\n")] = 0;
 
-			// Check if input is empty
+			// check if input is empty
 			if (strlen(id_input) == 0) {
 				printf("Error: ID cannot be empty.\n");
 				continue;
 			}
 
-			// Check ALL characters must be digits (0-9) - this is the FIRST check
+			// initial check that characters input are all digits
 			int all_digits = 1;
 			for (int i = 0; i < strlen(id_input); i++) {
 				if (id_input[i] < '0' || id_input[i] > '9') {
@@ -797,13 +797,13 @@ int insert_record(CMSdb* db) {
 				continue;
 			}
 
-			// THEN Check length - must be exactly 7 digits
+			// subsequent check for length of Student ID
 			if (strlen(id_input) != MAX_ID_LENGTH) {
 				printf("Error: ID must be %d digits.\n", MAX_ID_LENGTH);
 				continue;
 			}
 
-			// Convert string to integer
+			// convert string to integer
 			studentID = atoi(id_input);
 			break;
 		}
@@ -846,10 +846,10 @@ int insert_record(CMSdb* db) {
 				continue;
 			}
 
-			// Remove newline character
+			// remove newline character
 			choice_input[strcspn(choice_input, "\n")] = 0;
 
-			// Validate choice input
+			// validate choice input
 			if (strlen(choice_input) != 1 || !isdigit(choice_input[0])) {
 				printf("Invalid choice. Please enter a single digit (1-3).\n");
 				continue;
@@ -874,19 +874,19 @@ int insert_record(CMSdb* db) {
 			while (!valid_name) {
 				get_string_input(updatedname, sizeof(updatedname), "Enter updated name: ");
 
-				// Check if name is empty
+				// check if name is empty
 				if (strlen(updatedname) == 0) {
 					printf("Error: Name cannot be empty.\n");
 					continue;
 				}
 
-				// Check the length of the name
+				// check the length of the name
 				if (strlen(updatedname) > MAX_NAME_LENGTH) {
 					printf("Error: Name cannot exceed %d characters.\n", MAX_NAME_LENGTH);
 					continue;
 				}
 
-				// Check the characters: only allow letters and space
+				// check the characters: only allow letters and space
 				int valid = 1;
 				for (int i = 0; i < strlen(updatedname); i++) {
 					char c = updatedname[i];
@@ -916,19 +916,19 @@ int insert_record(CMSdb* db) {
 			while (!valid_programme) {
 				get_string_input(updatedprog, sizeof(updatedprog), "Enter updated programme: ");
 
-				// Check if programme is empty
+				// check if programme is empty
 				if (strlen(updatedprog) == 0) {
 					printf("Error: Programme cannot be empty.\n");
 					continue;
 				}
 
-				// Check the length of the programme
+				// check the length of the programme
 				if (strlen(updatedprog) > MAX_PROGRAMME_LENGTH) {
 					printf("Error: Programme cannot exceed %d characters.\n", MAX_PROGRAMME_LENGTH);
 					continue;
 				}
 
-				// Check if the input contains only letters and spaces
+				// check if the input contains only letters and spaces
 				int valid = 1;
 				for (int i = 0; i < strlen(updatedprog); i++) {
 					char c = updatedprog[i];
@@ -964,10 +964,10 @@ int insert_record(CMSdb* db) {
 					continue;
 				}
 
-				// Remove newline character
+				// remove newline character
 				mark_input[strcspn(mark_input, "\n")] = 0;
 
-				// Validate mark format
+				// validate mark format
 				int valid_format = 1;
 				int has_decimal = 0;
 				int digits_after_decimal = 0;
@@ -976,7 +976,7 @@ int insert_record(CMSdb* db) {
 				for (int i = 0; mark_input[i] != '\0'; i++) {
 					if (mark_input[i] == '.') {
 						if (has_decimal) {
-							valid_format = 0; // Multiple decimal points
+							valid_format = 0; // multiple decimal points
 							break;
 						}
 						has_decimal = 1;
@@ -985,7 +985,7 @@ int insert_record(CMSdb* db) {
 						if (has_decimal) {
 							digits_after_decimal++;
 							if (digits_after_decimal > 1) {
-								valid_format = 0; // More than 1 decimal place
+								valid_format = 0; // more than 1 decimal place
 								break;
 							}
 						}
@@ -994,27 +994,27 @@ int insert_record(CMSdb* db) {
 						}
 					}
 					else {
-						valid_format = 0; // Invalid character
+						valid_format = 0; // invalid character
 						break;
 					}
 				}
 
-				// Check if it ends with a decimal point
+				// check if it ends with a decimal point
 				if (has_decimal && digits_after_decimal == 0) {
-					valid_format = 0; // Ends with decimal point (e.g., "90.")
+					valid_format = 0; // ends with decimal point (e.g., "90.")
 				}
 
-				// Check if there are digits before decimal (for numbers < 1)
+				// check if there are digits before decimal (for numbers < 1)
 				if (has_decimal && digit_count == 0) {
 					valid_format = 0; // No digits before decimal (e.g., ".5")
 				}
 
-				// Check if there are any digits at all
+				// check if there are any digits at all
 				if (digit_count == 0 && digits_after_decimal == 0) {
 					valid_format = 0; // No digits entered
 				}
 
-				// Convert to float and check range
+				// convert to float and check range
 				if (!valid_format || sscanf_s(mark_input, "%f", &updatedmarks) != 1 ||
 					updatedmarks < 0 || updatedmarks > 100) {
 					printf("Invalid mark. Please enter a number between 0-100 with maximum 1 decimal place.\n");
