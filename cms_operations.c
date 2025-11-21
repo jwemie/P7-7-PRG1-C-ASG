@@ -89,7 +89,7 @@ void initialize_db(CMSdb* db) {
 	}
 
 	db->record_count = 0;			//start with no records
-	db->is_open = 0;				//database is not opened yet
+	db->is_open = 0;				//database is not opened yet flag
 	strcpy_s(db->current_filename, sizeof(db->current_filename), "Sample-CMS"); //No current file
 }
 /*
@@ -121,8 +121,8 @@ void show_menu(void) {
 	printf("5. Query Record\n");
 	printf("6. Update Record\n");
 	printf("7. Delete Record\n");
-	printf("8. Undo\n");
-	printf("9. Save File\n");
+	printf("8. Save File\n");
+	printf("9. Undo\n");
 	printf("10. Exit\n");
 }
 
@@ -265,17 +265,9 @@ int insert_record(CMSdb* db) {
 		printf("CMS: No database is currently opened.\n");
 		return 0;
 	}
-
-	// Save current state before insertion for undo functionality
-	// Allows us to remove the new record if user wants to undo
-	save_undo_state(db, "INSERT");
-
-
-
 	// check whether the database has reached the maximum record limit and call MAX_RECORDS function from cms.h
 	if (db->record_count >= MAX_RECORDS) {
 		printf("CMS: Database is full. Cannot insert more records.\n");
-		db->undo.can_undo = 0; // Disable undo since insertion failed
 		return 0;
 	}
 
@@ -388,76 +380,67 @@ int insert_record(CMSdb* db) {
 	}
 
 	// Input Mark
-	int valid_mark = 0;
-
-	while (!valid_mark) {
-
+	while (1) {
 		printf("Enter Mark (integer or 1 decimal place): ");
-
 		if (fgets(buffer, sizeof(buffer), stdin) == NULL) {
 			printf("Input error. Try again.\n");
-			continue; // if error, go back to re-enter number again
+			continue;
 		}
 
-		buffer[strcspn(buffer, "\n")] = 0; // change to string make sure the input string will not include "\n"
+		buffer[strcspn(buffer, "\n")] = 0;  // remove newline
 		int len = strlen(buffer);
 		int dot_count = 0, dot_pos = -1;
 
-		// check chars
-		int numeric_ok = 1;
+		// Check characters
 		for (int i = 0; i < len; i++) {
-
-			// if find decimal, then record the position
+			// Check the dot, if have dot, then push to check dot_count
 			if (buffer[i] == '.') {
 				dot_count++;
 				dot_pos = i;
 			}
-
-			// if not a digit or decimal, break "check chars" loop
 			else if (!isdigit((unsigned char)buffer[i])) {
-				numeric_ok = 0;
-				break;
-			}
+				printf("Error: Mark must be numeric.\n");
+				goto retry; // if have error, restart the loop
+			} // use "unsigned char" to make sure "isdigit" work correctly
 		}
 
-		if (!numeric_ok) {
-			printf("Error: Mark must be numeric.\n");
-			continue;
-		}
+		// Check if have more than 1 dot
 		if (dot_count > 1) {
-			printf("Error: Mark must have only one decimal point.\n");
-			continue;
+			printf("Error: Mark must have at most one decimal point.\n");
+			goto retry;
 		}
 
-		// only allow 1 dp. eg: 24.6 is correct, 24.77 is incorrect
+		// Check the digit after decimal point
 		if (dot_count == 1) {
+			// Must have exactly one digit after decimal (eg. 23.4, not 23.40)
 			if (dot_pos != len - 2) {
 				printf("Error: Must have exactly one decimal place.\n");
-				continue;
+				goto retry;
 			}
 
-			// if 0 < input number < 1, must have a leading zero. eg: 0.5 is correct, .5 is wrong
+			// Check if input number < 1, must put 0 before decimal point (eg: 0.5 correct, .5 incorrect)
 			if (dot_pos == 0) {
-				printf("Error: Number < 1 must have leading zero.\n");
-				continue;
+				printf("Error: Number < 1 must have leading zero (0.x).\n");
+				goto retry;
 			}
 		}
 
-		// check if the number in correct range
-		double mark = atof(buffer); // change the string to double
+		double mark = atof(buffer); // Convert to double
+
+		// Chcek if the input mark is valid
 		if (mark < 0 || mark > 100) {
 			printf("Error: Mark must be between 0 and 100.\n");
-			continue;
+			goto retry;
 		}
 
 		record->mark = mark;
-		valid_mark = 1;
+		printf("Record added successfully!\n");
+		break;
+
+	retry:
+		continue;
 	}
 	db->record_count++;
-
-	printf("CMS: You can see UNDO (Option 8) to revert this insertion if needed.\n");
-	return 1;
-
 }
 	//Query a Record
 
@@ -778,18 +761,12 @@ int insert_record(CMSdb* db) {
 			printf("CMS: No records available to update.\n");
 			return 0;
 		}
-
-		// Save current state for undo functionality before updating
-		//Store the old values so we can revert if needed
-		save_undo_state(db, "UPDATE");
-
 		//update student ID
 		int studentID;
 		printf("Enter student ID to update:\n");
 		if (scanf_s("%d", &studentID) != 1) {
 			printf("CMS: Invalid ID.\n");
 			clear_input_buffer();
-			db->undo.can_undo = 0; // Cancel undo since no update occurred
 			return 0;
 		}
 
@@ -804,7 +781,6 @@ int insert_record(CMSdb* db) {
 		if (recordsindex == -1) {
 			printf("CMS: The record with ID = %d does not exist.\n", studentID);
 			clear_input_buffer();
-			db->undo.can_undo = 0; // Cancel undo since no update occurred
 			return 0;
 		}
 
@@ -828,7 +804,6 @@ int insert_record(CMSdb* db) {
 		if (scanf_s("%d", &choices) != 1) {
 			printf("CMS: Invalid choice format.\n");
 			clear_input_buffer();
-			db->undo.can_undo = 0; // Cancel undo since no update occurred
 			return 0;
 		}
 		clear_input_buffer();
@@ -885,9 +860,6 @@ int insert_record(CMSdb* db) {
 		printf("Name: %s\n", record->name);
 		printf("Programme: %s\n", record->programme);
 		printf("Mark: %.1f\n", record->mark);
-
-		//Inform user they can undo this update to restore old values
-		printf("CMS: You can UNDO (Option 8) to restore the old values if needed.\n");
 
 		return 1;
 	}
@@ -976,7 +948,7 @@ int insert_record(CMSdb* db) {
 
 		// Notify user of successful deletion
 		printf("CMS: The record with ID=%d is successfully deleted.\n", id_to_delete);
-		printf("CMS: You can UNDO (Option 8) to undo the deletion.\n");
+		printf("CMS: You can undo this deletion using the 'Option 8' option.\n");
 
 		return 1;  //The deletion was successful
 	}
@@ -988,47 +960,8 @@ int insert_record(CMSdb* db) {
 			printf("CMS: No database is currently opened.\n");
 			return 0;
 		}
-
-		// Check if there are any records to save
-		if (db->record_count == 0) {
-			printf("CMS: No records to save (Database is empty).\n");
-			return 0;
-		}
-
-		//Open the file for writing (this will overwrite the existing file)
-		FILE* file = fopen(db->current_filename, "w");
-
-		// Check if file open successfully
-		if (file == NULL) {
-			printf("CMS: Error - Cannot save to file \"%s\"\n", db->current_filename);
-			printf("CMS: Please check if the file is not opened in another program.\n");
-			return 0;
-		}
-
-		//Write all student records to the file
-		for (int i = 0; i < db->record_count; i++) {
-			// Write each record with tab-separated values
-			fprintf(file, "%d\t%s\t%s\t%.1f\n",
-				db->records[i].id,
-				db->records[i].name,
-				db->records[i].programme,
-				db->records[i].mark);
-		}
-
-		//Close the file
-		fclose(file);
-
-		//Clear undo state (Since changes are now permanent
-		//After saving, there's nothing to undo - all changes are committed
-		((CMSdb*)db)->undo.can_undo = 0;
-		strcpy_s(((CMSdb*)db)->undo.last_operation,
-			sizeof(((CMSdb*)db)->undo.last_operation), "");
-
-		//Print display success message
-		printf("CMS: The database file \"%s\" is successfully saved.\n", db->current_filename);
-		printf("CMS: %d record(s) saved to file.\n", db->record_count);
-		printf("CMS: All changes have been committed (cannot be undone after save).\n");
-
+		printf("CMS: Save file function - TO BE IMPLEMENTED\n");
+		printf("CMS: Would save %d records to file\n", db->record_count);
 		return 1;
 	}
 /*
@@ -1041,7 +974,7 @@ int insert_record(CMSdb* db) {
 		}
 
 		if (!db->undo.can_undo) { // No undo available
-			printf("CMS: Nothing to undo. No operation has been performed yet.\n");
+			printf("CMS: Nothing to undo. No delete operation has been performed yet.\n");
 			return 0;
 		}
 

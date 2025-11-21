@@ -10,7 +10,7 @@ int get_valid_menu_choice(void) {
 
 	while (1) {
 		show_menu();
-		printf("Enter your choice (1-9): ");
+		printf("Enter your choice (1-10): ");
 
 		if (fgets(input, sizeof(input), stdin) == NULL) 
 		{
@@ -24,15 +24,21 @@ int get_valid_menu_choice(void) {
 			clear_input_buffer();
 		}
 
+		// Remove newline character
+		input[strcspn(input, "\n")] = 0;
+
+		if (strcmp(input, "10") == 0) {
+			return 10;  // Directly return -1 for exit
+		}
 		if (strlen(input) != 2 || input[1] != '\n') //check input length is only 1 digit
 		{
-			printf("Invalid input! Please enter a single digit (1-9).\n");
+			printf("Invalid input! Please enter a single digit (1-10).\n");
 			continue;
 		}
 
 		if (input[0] < '1' || input[0] > '9') 
 		{
-			printf("Invalid choice! Please enter a number between 1-9.\n");
+			printf("Invalid choice! Please enter a number between 1-10.\n");
 			continue;
 		}
 		choice = input[0] - '0';
