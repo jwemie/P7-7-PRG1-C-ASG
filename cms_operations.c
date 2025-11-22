@@ -40,13 +40,13 @@ int get_valid_student_id(void)
 
 		if (fgets(input, sizeof(input), stdin) == NULL) 
 		{
-			printf("Error, Try again");
+			printf("Error, Try again\n");
 			continue;
 		}
 		if (strchr(input, '\n') == NULL)
 		{
 			clear_input_buffer();
-			printf("Invalid Input! Please follow paramters");
+			printf("Invalid Input! Please follow paramters\n");
 			continue;
 		}
 
@@ -55,7 +55,7 @@ int get_valid_student_id(void)
 
 		if (strlen(input) != 7)
 		{
-			printf("Invalid Input! Student ID not 7 digits, you entered %zu digits", strlen(input));
+			printf("Invalid Input! Student ID not 7 digits, you entered %zu digits\n", strlen(input));
 			continue;
 		}
 		int all_digits_check = 1;
@@ -271,7 +271,7 @@ int handle_menu_choice(int choice, CMSdb* db) {
 		return undo_last_operation(db);
 	case 9: // Save File
 		return save_file(db);
-	case 10: // Exitx
+	case 10: // Exit
 		printf("Exiting CMS\n");
 		return -1; // Special return value to exit program
 
@@ -557,65 +557,70 @@ int insert_record(CMSdb* db) {
 	}
 
 	// Input Mark
-	while (1) {
+	int valid_mark = 0;
+
+	while (!valid_mark) {
+
 		printf("Enter Mark (integer or 1 decimal place): ");
+
 		if (fgets(buffer, sizeof(buffer), stdin) == NULL) {
 			printf("Input error. Try again.\n");
-			continue;
+			continue; // if error, go back to re-enter number again
 		}
 
-		buffer[strcspn(buffer, "\n")] = 0;  // remove newline
+		buffer[strcspn(buffer, "\n")] = 0; // change to string make sure the input string will not include "\n"
 		int len = strlen(buffer);
 		int dot_count = 0, dot_pos = -1;
 
-		// Check characters
+		// check chars
+		int numeric_ok = 1;
 		for (int i = 0; i < len; i++) {
-			// Check the dot, if have dot, then push to check dot_count
+
+			// if find decimal, then record the position
 			if (buffer[i] == '.') {
 				dot_count++;
 				dot_pos = i;
 			}
+
+			// if not a digit or decimal, break "check chars" loop
 			else if (!isdigit((unsigned char)buffer[i])) {
-				printf("Error: Mark must be numeric.\n");
-				goto retry; // if have error, restart the loop
-			} // use "unsigned char" to make sure "isdigit" work correctly
+				numeric_ok = 0;
+				break;
+			}
 		}
 
-		// Check if have more than 1 dot
+		if (!numeric_ok) {
+			printf("Error: Mark must be numeric.\n");
+			continue;
+		}
 		if (dot_count > 1) {
-			printf("Error: Mark must have at most one decimal point.\n");
-			goto retry;
+			printf("Error: Mark must have only one decimal point.\n");
+			continue;
 		}
 
-		// Check the digit after decimal point
+		// only allow 1 dp. eg: 24.6 is correct, 24.77 is incorrect
 		if (dot_count == 1) {
-			// Must have exactly one digit after decimal (eg. 23.4, not 23.40)
 			if (dot_pos != len - 2) {
 				printf("Error: Must have exactly one decimal place.\n");
-				goto retry;
+				continue;
 			}
 
-			// Check if input number < 1, must put 0 before decimal point (eg: 0.5 correct, .5 incorrect)
+			// if 0 < input number < 1, must have a leading zero. eg: 0.5 is correct, .5 is wrong
 			if (dot_pos == 0) {
-				printf("Error: Number < 1 must have leading zero (0.x).\n");
-				goto retry;
+				printf("Error: Number < 1 must have leading zero.\n");
+				continue;
 			}
 		}
 
-		double mark = atof(buffer); // Convert to double
-
-		// Chcek if the input mark is valid
+		// check if the number in correct range
+		double mark = atof(buffer); // change the string to double
 		if (mark < 0 || mark > 100) {
 			printf("Error: Mark must be between 0 and 100.\n");
-			goto retry;
+			continue;
 		}
 
 		record->mark = mark;
-		printf("Record added successfully!\n");
-		break;
-
-	retry:
-		continue;
+		valid_mark = 1;
 	}
 	db->record_count++;
 	printf("CMS: You can see UNDO (Option 8) to revert this insertion if needed.\n");
@@ -1186,21 +1191,30 @@ int insert_record(CMSdb* db) {
 			return 0;
 		}
 
-		// Save current state for undo functionality before deleting 
-		save_undo_state(db, "DELETE");
+		// Check if there are any records to delete
+		if (db->record_count == 0) {
+			printf("CMS: No records in database to delete.\n");
+			return 0;
+		}
 
 		// Prompt user for Student ID to delete
 		int id_to_delete;
+		printf("P7-7: DELETE\n");
 		printf("CMS: Enter Student ID to delete: ");
 
-		// We will read the ID from user 
+		// Read the ID from user
 		if (scanf("%d", &id_to_delete) != 1) {
 			printf("CMS: Invalid ID format.\n");
-			clear_input_buffer();  // Clear any invalid input
-			db->undo.can_undo = 0; // Cancel undo since no deletion occurred
+			clear_input_buffer();
 			return 0;
 		}
-		clear_input_buffer();  // Clear the input buffer after reading
+		clear_input_buffer();
+
+		// Validate it's a 7-digit ID
+		if (id_to_delete < 1000000 || id_to_delete > 9999999) {
+			printf("CMS: Student ID must be 7 digits (1000000-9999999).\n");
+			return 0;
+		}
 
 		// Search for the record with the given ID
 		int found_index = -1;  // -1 means "not found"
@@ -1247,6 +1261,9 @@ int insert_record(CMSdb* db) {
 			db->undo.can_undo = 0; // Cancel undo since no deletion occurred
 			return 0;
 		}
+		
+			// Save current state for undo functionality before deleting 
+			save_undo_state(db, "DELETE");
 
 		//If user confirmed deletion, proceed to delete the record
 		//How we delete the record is by shifting all records after found_index one position to the left
@@ -1262,7 +1279,7 @@ int insert_record(CMSdb* db) {
 
 		// Notify user of successful deletion
 		printf("CMS: The record with ID=%d is successfully deleted.\n", id_to_delete);
-		printf("CMS: You can undo this deletion using the 'Option 8' option.\n");
+		printf("CMS: You can UNDO (Option 8) to undo the deletion.\n");
 
 		return 1;  //The deletion was successful
 	}
@@ -1327,7 +1344,7 @@ int insert_record(CMSdb* db) {
 		}
 
 		if (!db->undo.can_undo) { // No undo available
-			printf("CMS: Nothing to undo. No delete operation has been performed yet.\n");
+			printf("CMS: Nothing to undo. No operation has been performed yet.\n");
 			return 0;
 		}
 
