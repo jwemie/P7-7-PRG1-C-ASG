@@ -946,9 +946,51 @@ int insert_record(CMSdb* db) {
 			return 0;
 		}
 
-		// ✅ IMPROVEMENT 1: Use get_valid_student_id() for initial ID input
-		printf("Enter student ID to update:\n");
-		int studentID = get_valid_student_id();
+		// Get student ID to update with proper validation
+		int studentID;
+		char id_input[100];
+
+		while (1) {
+			printf("=== Update Student Records ===\n");
+			printf("P7-7 UPDATE ID: ");
+
+			if (fgets(id_input, sizeof(id_input), stdin) == NULL) {
+				printf("Input error. Try again.\n");
+				continue;
+			}
+
+			// Remove newline character
+			id_input[strcspn(id_input, "\n")] = 0;
+
+			// Check if input is empty
+			if (strlen(id_input) == 0) {
+				printf("Error: ID cannot be empty.\n");
+				continue;
+			}
+
+			// Check all characters must be digits FIRST
+			int all_digits = 1;
+			for (int i = 0; i < strlen(id_input); i++) {
+				if (id_input[i] < '0' || id_input[i] > '9') {
+					all_digits = 0;
+					break;
+				}
+			}
+			if (!all_digits) {
+				printf("Error: ID must contain digits only (no letters, no symbols).\n");
+				continue;
+			}
+
+			// THEN Check length - must be exactly 7 digits
+			if (strlen(id_input) != MAX_ID_LENGTH) {
+				printf("Error: ID must be %d digits.\n", MAX_ID_LENGTH);
+				continue;
+			}
+
+			// Convert string to integer
+			studentID = atoi(id_input);
+			break;
+		}
 
 		int recordsindex = -1; //check whether the student ID already exist
 		for (int i = 0; i < db->record_count; i++) {
