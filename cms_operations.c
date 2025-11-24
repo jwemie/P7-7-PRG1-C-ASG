@@ -1425,8 +1425,8 @@ int insert_record(CMSdb* db) {
 		while (1)
 		{
 			printf("\n=== Sort Records ===\n");
-			printf("1. Sort by ID (Ascending A-Z)\n");
-			printf("2. Sort by ID (Descending Z-A)\n");
+			printf("1. Sort by ID (Ascending)\n");
+			printf("2. Sort by ID (Descending)\n");
 			printf("3. Sort by Mark (Ascending 0.0 - 100.0)\n");
 			printf("4. Sort by Mark (Descending 100.0 - 0.0\n");
 			printf("5. Return to Main Menu\n");

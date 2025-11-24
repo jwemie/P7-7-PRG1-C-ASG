@@ -40,8 +40,8 @@
 */
 typedef struct {
 	int id; //StudentID (e.g., 2301234)
-	char name[MAX_NAME_LENGTH]; //student name (49 chars + \n)
-	char programme[MAX_PROGRAMME_LENGTH]; //programe name (99 chars + \n)
+	char name[MAX_NAME_LENGTH]; //student name 40 chars
+	char programme[MAX_PROGRAMME_LENGTH]; //programe name 40 chars
 	float mark; //marks (0.0-100.0)
 } StudentRecord;
 
